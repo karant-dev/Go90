@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go90 Scale - Rate Streaming Services</title>
+    <meta name="description"
+        content="Drag streaming services on a 0-90 scale. 0 = thriving, 90 = doomed. See how the community rates each service.">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --bg-card-hover: #22222e;
+            --text-primary: #f0f0f5;
+            --text-secondary: #8a8a9a;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #2a2a3a;
+            --gradient-safe: #10b981;
+            --gradient-mid: #f59e0b;
+            --gradient-doom: #ef4444;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --radius: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #f5f5f7;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #f0f0f5;
+            --text-primary: #1a1a2e;
+            --text-secondary: #6a6a7a;
+            --border: #e0e0e8;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .logo {
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            letter-spacing: -2px;
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            font-size: 1.2rem;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-card-hover);
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Scale Container */
+        .scale-container {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .scale-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .scale-header span:first-child {
+            color: var(--success);
+        }
+
+        .scale-header span:last-child {
+            color: var(--danger);
+        }
+
+        .scale-track {
+            position: relative;
+            height: 120px;
+            background: linear-gradient(90deg, var(--gradient-safe) 0%, var(--gradient-mid) 50%, var(--gradient-doom) 100%);
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            overflow: visible;
+        }
+
+        .scale-markers {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        /* Service Cards */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .service-card {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1rem;
+            cursor: grab;
+            transition: var(--transition);
+            text-align: center;
+            user-select: none;
+            position: relative;
+        }
+
+        .service-card:hover {
+            background: var(--bg-card-hover);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow);
+            border-color: var(--accent);
+        }
+
+        .service-card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .service-card.on-scale {
+            position: absolute;
+            width: 100px;
+            transform: translateX(-50%);
+            z-index: 10;
+            top: -20px;
+        }
+
+        .service-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            margin: 0 auto 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: transparent;
+        }
+
+        /* Invert specific logos in dark mode (e.g. black logos) */
+        [data-theme="dark"] .service-logo.invert-dark img {
+            filter: invert(1) brightness(1.5);
+        }
+
+        /* Invert specific logos in light mode (e.g. white logos) */
+        [data-theme="light"] .service-logo.invert-light img {
+            filter: invert(1);
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .service-score {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .service-votes {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Actions */
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+        }
+
+        /* Instructions */
+        .instructions {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .instructions h3 {
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .instructions ol {
+            margin-left: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        /* Leaderboard */
+        .leaderboard {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .leaderboard h3 {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .leaderboard-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-card);
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+
+        .leaderboard-item:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .rank {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            min-width: 30px;
+        }
+
+        .rank.top-3 {
+            color: var(--warning);
+        }
+
+        .lb-score {
+            margin-left: auto;
+            font-weight: 700;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .lb-score.safe {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .lb-score.mid {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .lb-score.doom {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 1rem 2rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.success {
+            border-color: var(--success);
+        }
+
+        .toast.error {
+            border-color: var(--danger);
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .logo {
+                font-size: 2.5rem;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+
+            .scale-container {
+                padding: 1rem;
+            }
+
+            .services-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            }
+
+            .stats-bar {
+                gap: 1rem;
+            }
+
+            .stat-value {
+                font-size: 1.4rem;
+            }
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Vote Slider Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            border: 1px solid var(--border);
+        }
+
+        .modal h3 {
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .slider-container {
+            margin-bottom: 1.5rem;
+        }
+
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .slider-labels span:first-child {
+            color: var(--success);
+        }
+
+        .slider-labels span:last-child {
+            color: var(--danger);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(90deg, var(--gradient-safe) 0%, var(--gradient-mid) 50%, var(--gradient-doom) 100%);
+            border-radius: 4px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .score-display {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 1rem 0;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+            <h1 class="logo">Go90 Scale</h1>
+            <p class="tagline">Rate streaming services: 0 = Thriving 📈 | 90 = Doomed 💀</p>
+        </header>
+
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value" id="totalVotes">-</div>
+                <div class="stat-label">Total Votes</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="mostThriving">-</div>
+                <div class="stat-label">Most Thriving</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="mostDoomed">-</div>
+                <div class="stat-label">Most Doomed</div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>🎮 How to Play</h3>
+            <ol>
+                <li>Click on any streaming service card below</li>
+                <li>Use the slider to rate it from 0 (thriving) to 90 (doomed)</li>
+                <li>Submit your vote and see the community average!</li>
+            </ol>
+        </div>
+
+        <div id="servicesContainer" class="loading">
+            <div class="spinner"></div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-primary" id="resetBtn" onclick="resetVotes()">🔄 Reset My Votes</button>
+            <button class="btn btn-secondary" onclick="refreshScores()">↻ Refresh Scores</button>
+        </div>
+
+        <div class="leaderboard">
+            <h3>📊 Community Rankings</h3>
+            <div id="leaderboardList" class="leaderboard-list"></div>
+        </div>
+    </div>
+
+    <!-- Vote Modal -->
+    <div class="modal-overlay" id="voteModal">
+        <div class="modal">
+            <h3 id="modalTitle">Rate Service</h3>
+            <div class="slider-container">
+                <div class="slider-labels">
+                    <span>Thriving 📈</span>
+                    <span>Doomed 💀</span>
+                </div>
+                <input type="range" id="voteSlider" min="0" max="90" value="45" oninput="updateScoreDisplay()">
+            </div>
+            <div class="score-display" id="scoreDisplay">45</div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitVote()">Submit Vote</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <footer>
+        <p>Inspired by <a href="https://www.theverge.com/the-vergecast" target="_blank">The Vergecast</a> |
+            <a href="https://github.com" target="_blank">View Source</a>
+        </p>
+    </footer>
+
+    <script>
+        // ============================================
+        // CONFIGURATION - Update these values!
+        // ============================================
+        const SUPABASE_URL = 'https://qkgjpqxvnrppcxugrivu.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_WPHzPdLLupqOXXeGnxiHNA_qfcNN3qJ';
+
+        // Demo mode: set to true to use local storage only (no Supabase needed)
+        const DEMO_MODE = false;
+
+        // ============================================
+        // App State
+        // ============================================
+        let supabaseClient = null;
+        let services = [];
+        let myVotes = {};
+        let currentServiceId = null;
+        const SESSION_ID = getSessionId();
+        const RATE_LIMIT_MS = 60000; // 1 minute between votes
+        let lastVoteTime = parseInt(localStorage.getItem('go90_lastVote') || '0');
+
+        // Default services data
+        // Default services data
+        const DEFAULT_SERVICES = [
+            { id: '1', name: 'Netflix', logo_url: 'assets/logos/netflix.svg' },
+            { id: '2', name: 'Disney+', logo_url: 'assets/logos/disney.svg', invert_light: true },
+            { id: '3', name: 'Max', logo_url: 'assets/logos/max.svg', invert_dark: true },
+            { id: '4', name: 'Paramount+', logo_url: 'assets/logos/paramount.svg', invert_dark: true },
+            { id: '5', name: 'Peacock', logo_url: 'assets/logos/peacock.svg' },
+            { id: '6', name: 'Apple TV+', logo_url: 'assets/logos/apple-tv.svg', invert_dark: true },
+            { id: '7', name: 'Prime Video', logo_url: 'assets/logos/prime-video.svg', invert_dark: true },
+            { id: '8', name: 'Hulu', logo_url: 'assets/logos/hulu.svg', invert_dark: true },
+            { id: '9', name: 'YouTube', logo_url: 'assets/logos/youtube.svg' },
+        ];
+
+        // ============================================
+        // Initialization
+        // ============================================
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+        async function init() {
+            // Load theme
+            const savedTheme = localStorage.getItem('go90_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeButton();
+
+            // Load saved votes
+            myVotes = JSON.parse(localStorage.getItem('go90_myVotes') || '{}');
+
+            // Initialize Supabase if not in demo mode
+            if (!DEMO_MODE && SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+                try {
+                    // Check if window.supabase exists from CDN
+                    if (window.supabase) {
+                        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    } else {
+                        console.warn('Supabase SDK not found');
+                        throw new Error('Supabase SDK not loaded');
+                    }
+                } catch (e) {
+                    console.warn('Supabase init failed, using demo mode', e);
+                }
+            }
+
+            await loadServices();
+            renderServices();
+            renderLeaderboard();
+        }
+
+        // ============================================
+        // Data Functions
+        // ============================================
+        function getSessionId() {
+            let id = localStorage.getItem('go90_sessionId');
+            if (!id) {
+                id = 'sess_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+                localStorage.setItem('go90_sessionId', id);
+            }
+            return id;
+        }
+
+        async function loadServices() {
+            // Function to use default data
+            const useDefaults = () => {
+                console.log('Using default services data');
+                services = DEFAULT_SERVICES.map(s => ({
+                    ...s,
+                    avg_score: myVotes[s.id] !== undefined ? myVotes[s.id] : Math.floor(Math.random() * 60) + 15,
+                    vote_count: Math.floor(Math.random() * 500) + 50
+                }));
+            };
+
+            if (DEMO_MODE || !supabaseClient) {
+                useDefaults();
+                // We still need to clear loading class if we return early
+                document.getElementById('servicesContainer').classList.remove('loading');
+                return;
+            }
+
+            try {
+                // Create a timeout promise to prevent infinite loading
+                const timeout = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Request timed out')), 3000)
+                );
+
+                // Race the Supabase query against the timeout
+                const { data, error } = await Promise.race([
+                    supabaseClient.from('service_scores').select('*'),
+                    timeout
+                ]);
+
+                if (error) throw error;
+
+                // Merge fetched data with local logos
+                services = (data || []).map(s => {
+                    // Find matching default service to get the local logo path
+                    const local = DEFAULT_SERVICES.find(d => d.name === s.name);
+                    return {
+                        ...s,
+                        // Prioritize database logo, fallback to local logo, then null
+                        logo_url: s.logo_url || local?.logo_url || null,
+                        // Persist local config for inversion
+                        invert_dark: local?.invert_dark || false,
+                        invert_light: local?.invert_light || false
+                    };
+                });
+
+                // If no data came back, use defaults to be safe
+                if (services.length === 0) useDefaults();
+
+            } catch (e) {
+                console.error('Failed to load services:', e);
+                showToast('Could not connect to database - using offline mode', 'error');
+                useDefaults();
+            } finally {
+                // Force remove loading class in all cases
+                const container = document.getElementById('servicesContainer');
+                if (container) container.classList.remove('loading');
+            }
+        }
+
+        async function submitVoteToServer(serviceId, score) {
+            if (DEMO_MODE || !supabaseClient) {
+                // Demo mode: just save locally
+                myVotes[serviceId] = score;
+                localStorage.setItem('go90_myVotes', JSON.stringify(myVotes));
+
+                // Update local service score (simulate)
+                const service = services.find(s => s.id === serviceId);
+                if (service) {
+                    service.avg_score = score;
+                    service.vote_count = (service.vote_count || 0) + 1;
+                }
+                return true;
+            }
+
+            try {
+                const { error } = await supabaseClient
+                    .from('votes')
+                    .insert({
+                        service_id: serviceId,
+                        score: score,
+                        session_id: SESSION_ID
+                    });
+
+                if (error) throw error;
+
+                myVotes[serviceId] = score;
+                localStorage.setItem('go90_myVotes', JSON.stringify(myVotes));
+                return true;
+            } catch (e) {
+                console.error('Failed to submit vote:', e);
+                return false;
+            }
+        }
+
+        // ============================================
+        // UI Rendering
+        // ============================================
+        function renderServices() {
+            const container = document.getElementById('servicesContainer');
+            if (!container) return;
+
+            container.className = 'services-grid';
+            container.innerHTML = services.map(service => {
+                const logoClasses = ['service-logo'];
+                if (service.invert_dark) logoClasses.push('invert-dark');
+                if (service.invert_light) logoClasses.push('invert-light');
+
+                return `
+                <div class="service-card" onclick="openVoteModal('${service.id}')" data-id="${service.id}">
+                    <div class="${logoClasses.join(' ')}">${getLogoContent(service)}</div>
+                    <div class="service-name">${service.name}</div>
+                    <div class="service-score" style="color: ${getScoreColor(service.avg_score)}">
+                        ${service.avg_score !== null ? service.avg_score.toFixed(1) : '-'}
+                    </div>
+                    <div class="service-votes">${service.vote_count || 0} votes</div>
+                    ${myVotes[service.id] !== undefined ? '<div style="font-size:0.7rem;color:var(--accent);margin-top:0.25rem">✓ You voted: ' + myVotes[service.id] + '</div>' : ''}
+                </div>
+            `}).join('');
+
+            updateStats();
+        }
+
+        function renderLeaderboard() {
+            const sorted = [...services].sort((a, b) => (a.avg_score || 0) - (b.avg_score || 0));
+            const list = document.getElementById('leaderboardList');
+
+            list.innerHTML = sorted.map((service, i) => {
+                const score = service.avg_score || 0;
+                const scoreClass = score < 30 ? 'safe' : score < 60 ? 'mid' : 'doom';
+                return `
+                    <div class="leaderboard-item">
+                        <span class="rank ${i < 3 ? 'top-3' : ''}">#${i + 1}</span>
+                        <span class="service-name">${service.name}</span>
+                        <span class="lb-score ${scoreClass}">${score.toFixed(1)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const totalVotes = services.reduce((sum, s) => sum + (s.vote_count || 0), 0);
+            document.getElementById('totalVotes').textContent = totalVotes.toLocaleString();
+
+            const sorted = [...services].sort((a, b) => (a.avg_score || 50) - (b.avg_score || 50));
+            if (sorted.length > 0) {
+                document.getElementById('mostThriving').textContent = sorted[0].name;
+                document.getElementById('mostDoomed').textContent = sorted[sorted.length - 1].name;
+            }
+        }
+
+        function getLogoContent(service) {
+            if (service.logo_url) {
+                return `<img src="${service.logo_url}" alt="${service.name}" style="width:100%;height:100%;object-fit:contain;border-radius:8px">`;
+            }
+            return service.name.charAt(0).toUpperCase();
+        }
+
+        function getScoreColor(score) {
+            if (score === null || score === undefined) return 'var(--text-secondary)';
+            if (score < 30) return 'var(--success)';
+            if (score < 60) return 'var(--warning)';
+            return 'var(--danger)';
+        }
+
+        // ============================================
+        // Modal & Voting
+        // ============================================
+        function openVoteModal(serviceId) {
+            currentServiceId = serviceId;
+            const service = services.find(s => s.id === serviceId);
+
+            document.getElementById('modalTitle').textContent = `Rate ${service.name}`;
+            document.getElementById('voteSlider').value = myVotes[serviceId] ?? 45;
+            updateScoreDisplay();
+            document.getElementById('voteModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('voteModal').classList.remove('show');
+            currentServiceId = null;
+        }
+
+        function updateScoreDisplay() {
+            const value = document.getElementById('voteSlider').value;
+            const display = document.getElementById('scoreDisplay');
+            display.textContent = value;
+            display.style.color = getScoreColor(parseInt(value));
+        }
+
+        async function submitVote() {
+            if (!currentServiceId) return;
+
+            // Rate limiting
+            const now = Date.now();
+            if (now - lastVoteTime < RATE_LIMIT_MS) {
+                const remaining = Math.ceil((RATE_LIMIT_MS - (now - lastVoteTime)) / 1000);
+                showToast(`Please wait ${remaining}s before voting again`, 'error');
+                return;
+            }
+
+            const score = parseInt(document.getElementById('voteSlider').value);
+            const success = await submitVoteToServer(currentServiceId, score);
+
+            if (success) {
+                lastVoteTime = now;
+                localStorage.setItem('go90_lastVote', lastVoteTime.toString());
+                showToast('Vote submitted! 🎉', 'success');
+                closeModal();
+                renderServices();
+                renderLeaderboard();
+            } else {
+                showToast('Failed to submit vote', 'error');
+            }
+        }
+
+        // ============================================
+        // Utility Functions
+        // ============================================
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('go90_theme', next);
+            updateThemeButton();
+        }
+
+        function updateThemeButton() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            document.querySelector('.theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function resetVotes() {
+            if (confirm('Reset all your votes?')) {
+                myVotes = {};
+                localStorage.removeItem('go90_myVotes');
+                localStorage.removeItem('go90_lastVote');
+                lastVoteTime = 0;
+                showToast('Your votes have been reset', 'success');
+                loadServices().then(() => {
+                    renderServices();
+                    renderLeaderboard();
+                });
+            }
+        }
+
+        async function refreshScores() {
+            showToast('Refreshing scores...', 'info');
+            await loadServices();
+            renderServices();
+            renderLeaderboard();
+            showToast('Scores updated!', 'success');
+        }
+
+        // Close modal on outside click
+        document.getElementById('voteModal').addEventListener('click', (e) => {
+            if (e.target.id === 'voteModal') closeModal();
+        });
+
+        // Keyboard support
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+    </script>
+</body>
+
+</html>

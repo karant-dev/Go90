@@ -1,0 +1,16 @@
+# Project specific
+GEMINI.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CDNs / Build artifacts
+node_modules/
+dist/
+.env
+
+# Local development
+.vscode/
+.idea/
+*.log
